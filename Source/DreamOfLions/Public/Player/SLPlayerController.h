@@ -4,6 +4,7 @@
 #include "GameFramework/PlayerController.h"
 #include "SLPlayerController.generated.h"
 
+class UUserWidget;
 class USLChatWidget;
 
 UCLASS()
@@ -20,6 +21,9 @@ public:
 	UFUNCTION(Client, Reliable)
 	void ClientReceiveChat(const FString& Msg); // GameMode가 부르니까 public.
 
+	UFUNCTION(Client, Reliable)
+	void ClientShowNotice(const FString& Notice);
+
 protected:
 	UPROPERTY(EditDefaultsOnly)
 	TSubclassOf<USLChatWidget> ChatWidgetClass; // 에디터 상에 BP에서 WBP_Chat을 지정할 칸
@@ -29,4 +33,10 @@ protected:
 
 	UFUNCTION(Server, Reliable)
 	void ServerSendInput(const FString& Msg);
+
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<UUserWidget> NoticeWidgetClass;
+
+	UPROPERTY()
+	TObjectPtr<UUserWidget> NoticeWidgetInstance;
 };

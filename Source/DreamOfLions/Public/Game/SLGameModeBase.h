@@ -12,6 +12,17 @@ class DREAMOFLIONS_API ASLGameModeBase : public AGameModeBase
 	GENERATED_BODY()
 	
 public: 
+	virtual void BeginPlay() override;
+
 	void HandleChatInput(ASLPlayerController* Sender, const FString& Msg);
 
+	virtual void PostLogin(APlayerController* NewPlayer) override;
+
+protected:
+	int32 JoinedPlayerCount = 0;
+
+	FString SecretNumber;
+
+	void BroadcastLine(const FString& Line);
+	void ResetGame();
 };
