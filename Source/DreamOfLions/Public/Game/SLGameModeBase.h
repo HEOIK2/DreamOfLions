@@ -25,4 +25,6 @@ protected:
 
 	void BroadcastLine(const FString& Line);
 	void ResetGame();
+	void BroadcastNotice(const FString& Notice);
+	void JudgeGame(ASLPlayerController* Sender, const FString& Result);
 };

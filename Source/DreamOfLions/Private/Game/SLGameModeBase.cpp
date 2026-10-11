@@ -21,52 +21,45 @@ void ASLGameModeBase::BeginPlay()
 	}
 	const FString Name = PS->PlayerNameString;
 
-	//  숫자 3글자가 아니면 그냥 채팅
-	if (Msg.Len() != 3 || Msg.IsNumeric() == false)
+	// 숫자가 하나도 없으면 일반 채팅
+	bool bHasDigit = false;
+	for (const TCHAR C : Msg)
+	{
+		if (FChar::IsDigit(C))
+		{
+			bHasDigit = true;
+			break;
+		}
+	}
+	if (bHasDigit == false)
 	{
 		BroadcastLine(Name + TEXT(": ") + Msg);
 		return;
 	}
 
-	//  규칙 위반(0, 중복) → 본인에게만 안내, 기회 유지
-	if (USLBaseballLibrary::IsValidGuess(Msg) == false)
+	// 입력 검사 실패, 본인에게만 사유 안내, 기회 유지
+	const FString Error = USLBaseballLibrary::GetGuessError(Msg);
+	if (Error.IsEmpty() == false)
 	{
-		Sender->ClientReceiveChat(TEXT("[Notice] Use 3 different digits from 1-9. (No chance used)"));
+		Sender->ClientReceiveChat(TEXT("[Notice] ") + Error + TEXT(" Try again."));
 		return;
 	}
 
-	//  기회 소진 → 본인에게만 안내
+	// 기회 소진
 	if (PS->CurrentGuessCount >= PS->MaxGuessCount)
 	{
 		Sender->ClientReceiveChat(TEXT("[Notice] You have no chances left."));
 		return;
 	}
 
-	//  정상 추측: 시도 +1 → 판정 → 전원 방송
+	// 시도 +1 → 판정 → 전원 방송
 	PS->CurrentGuessCount++;
 	const FString Result = USLBaseballLibrary::Judge(SecretNumber, Msg);
-	BroadcastLine(FString::Printf(TEXT("%s(%d/%d): %s -> %s"),
-		*Name, PS->CurrentGuessCount, PS->MaxGuessCount, *Msg, *Result));
+	BroadcastLine(FString::Printf(TEXT("%s %s: %s -> %s"),
+		*Name, *PS->GetGuessCountString(), *Msg, *Result));
 
-	//  승리
-	if (Result == TEXT("3S0B"))
-	{
-		BroadcastLine(Name + TEXT(" wins! New game started."));
-		ResetGame();
-		return;
-	}
-
-	//  무승부: 전원 기회 소진
-	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
-	{
-		ASLPlayerState* OtherPS = It->Get()->GetPlayerState<ASLPlayerState>();
-		if (IsValid(OtherPS) && OtherPS->CurrentGuessCount < OtherPS->MaxGuessCount)
-		{
-			return;   // 아직 기회 남은 사람이 있음
-		}
-	}
-	BroadcastLine(FString::Printf(TEXT("Draw! The answer was %s. New game started."), *SecretNumber));
-	ResetGame();
+	// 승부 판단
+	JudgeGame(Sender, Result);
 }
 
 
@@ -107,4 +100,43 @@ void ASLGameModeBase::ResetGame()
 			PS->CurrentGuessCount = 0;
 		}
 	}
+}
+
+void ASLGameModeBase::BroadcastNotice(const FString& Notice)
+{
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		ASLPlayerController* PC = Cast<ASLPlayerController>(It->Get());
+		if (IsValid(PC))
+		{
+			PC->ClientShowNotice(Notice);
+		}
+	}
+}
+
+void ASLGameModeBase::JudgeGame(ASLPlayerController* Sender, const FString& Result)
+{
+	ASLPlayerState* PS = Sender->GetPlayerState<ASLPlayerState>();
+
+	// 승리
+	if (Result == TEXT("3S0B"))
+	{
+		BroadcastNotice(PS->PlayerNameString + TEXT(" Wins!"));
+		BroadcastLine(TEXT("[System] New game started."));
+		ResetGame();
+		return;
+	}
+
+	// 무승부: 기회 남은 사람이 한 명이라도 있으면 계속
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		ASLPlayerState* OtherPS = It->Get()->GetPlayerState<ASLPlayerState>();
+		if (IsValid(OtherPS) && OtherPS->CurrentGuessCount < OtherPS->MaxGuessCount)
+		{
+			return;
+		}
+	}
+	BroadcastNotice(TEXT("Draw!"));
+	BroadcastLine(FString::Printf(TEXT("[System] The answer was %s. New game started."), *SecretNumber));
+	ResetGame();
 }
